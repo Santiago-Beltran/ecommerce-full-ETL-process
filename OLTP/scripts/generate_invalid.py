@@ -561,7 +561,23 @@ def insert_invalid_records(records: Dict[str, List[Dict[str, Any]]]) -> int:
 
 
 
-def main():
+def main(count=20, today='2026-02-01'):
+    print(f"Generating {count} invalid records for date: {today}")
+    print("Querying OLTP database for valid reference IDs...")
+    
+    user_ids, product_ids = fetch_valid_ids()
+    print(f"  Found {len(user_ids)} users: {user_ids[:10]}{' ...' if len(user_ids) > 10 else ''}")
+    print(f"  Found {len(product_ids)} products: {product_ids[:10]}{' ...' if len(product_ids) > 10 else ''}")
+    print()
+    
+    records = generate_invalid_records(count, today, user_ids, product_ids)
+        
+    print("Inserting invalid records into OLTP database...")
+    inserted = insert_invalid_records(records)
+    print(f"  Successfully inserted {inserted} records into database")
+
+
+def main_cli():
     import sys
     import argparse
     from datetime import datetime
@@ -593,40 +609,13 @@ Examples:
     
     args = parser.parse_args()
     
-    # Validate date format
     try:
         datetime.strptime(args.today, '%Y-%m-%d')
     except ValueError:
         parser.error(f"Invalid date format '{args.today}'. Expected YYYY-MM-DD")
     
-    count = args.count
-    today = args.today
-    
-    print(f"Generating {count} invalid records for date: {today}")
-    print("Querying OLTP database for valid reference IDs...")
-    
-    # Fetch valid IDs from database
-    user_ids, product_ids = fetch_valid_ids()
-    print(f"  Found {len(user_ids)} users: {user_ids[:10]}{' ...' if len(user_ids) > 10 else ''}")
-    print(f"  Found {len(product_ids)} products: {product_ids[:10]}{' ...' if len(product_ids) > 10 else ''}")
-    print()
-    
-    records = generate_invalid_records(count, today, user_ids, product_ids)
-        
-    # Insert records into database
-    print("\nInserting invalid records into OLTP database...")
-    inserted = insert_invalid_records(records)
-    print(f"  Successfully inserted {inserted} records into database")
-    
-    # Print sample records
-    print("\nSample Invalid Records:")
-    if records['users']:
-        print(f"\n  Sample User: {records['users'][0]}")
-    if records['products']:
-        print(f"\n  Sample Product: {records['products'][0]}")
-    if records['transactions']:
-        print(f"\n  Sample Transaction: {records['transactions'][0]}")
+    main(args.count, args.today)
 
 
 if __name__ == '__main__':
-    main()
+    main_cli()

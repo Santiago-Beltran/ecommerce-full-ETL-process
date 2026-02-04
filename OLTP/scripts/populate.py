@@ -2,6 +2,7 @@ import sqlite3
 import random
 from faker import Faker
 from datetime import date
+import os
 
 fake = Faker()
 
@@ -317,6 +318,17 @@ def create_new_transactions(
                 )
 
     return inserted
+
+def main(num_users=100, num_products=25):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    db_path = os.path.join(script_dir, '..', 'ecommerce-OLTP.db')
+    
+    conn = sqlite3.connect(db_path)
+    populate_db_first_time(conn, num_users=num_users, num_products=num_products, join_date=date(2024, 1, 1))
+    print("OLTP database populated successfully")
+
+if __name__ == '__main__':
+    main()
 
 
 

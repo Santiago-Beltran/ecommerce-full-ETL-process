@@ -5,6 +5,7 @@ from datetime import datetime, date, timedelta
 from typing import Tuple, Dict, List, Any
 import os
 import re
+from .validation import DataValidator
 
 RUN_ID = None
 ERROR_COUNT = 0
@@ -141,148 +142,6 @@ def ensure_dim_date(conn_olap: sqlite3.Connection, d: date):
             iso_week,
             iso_weekday
         ))
-
-def validate_users(conn_olap: sqlite3.Connection, users: List[Tuple]) -> Tuple[List[Tuple], List[Tuple]]:
-    valid_users = []
-    rejected_users = []
-    
-    email_pattern = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
-    
-    for user in users:
-        user_id, name, email, join_date = user
-        
-        if not name or name.strip() == '':
-            log_error(conn_olap, 'user', 'dim_user', str(user_id), 'invalid_user', 
-                     f'Empty name for user {user_id}', 'error')
-            rejected_users.append(user)
-            continue
-        
-        if not email or not email_pattern.match(email):
-            log_error(conn_olap, 'user', 'dim_user', str(user_id), 'invalid_user',
-                     f'Invalid email "{email}" for user {user_id}', 'error')
-            rejected_users.append(user)
-            continue
-        
-        if join_date is None:
-            log_error(conn_olap, 'user', 'dim_user', str(user_id), 'invalid_user',
-                     f'NULL join_date for user {user_id}', 'error')
-            rejected_users.append(user)
-            continue
-        
-        valid_users.append(user)
-    
-    return valid_users, rejected_users
-
-def validate_products(conn_olap: sqlite3.Connection, products: List[Tuple]) -> Tuple[List[Tuple], List[Tuple]]:
-    valid_products = []
-    rejected_products = []
-    
-    for product in products:
-        product_id, name, category, price, stock = product
-        
-        if price >= 10000:
-            log_error(conn_olap, 'product', 'dim_product', str(product_id), 'price_ge_10000',
-                     f'Product {product_id} price {price} >= 10000', 'error')
-            rejected_products.append(product)
-            continue
-        
-        if stock < 0:
-            log_error(conn_olap, 'product', 'dim_product', str(product_id), 'negative_stock',
-                     f'Product {product_id} has negative stock {stock}', 'error')
-            rejected_products.append(product)
-            continue
-        
-        valid_products.append(product)
-    
-    return valid_products, rejected_products
-
-def validate_transactions(conn_olap: sqlite3.Connection, transactions: List[Tuple], 
-                         valid_user_ids: set, valid_product_ids: set, 
-                         product_prices: Dict[int, float]) -> Tuple[List[Tuple], List[Tuple]]:
-    valid_transactions = []
-    rejected_transactions = []
-    seen_tx_ids = set()
-    
-    valid_payment_types = {'visa', 'mastercard', 'wire transfer', 'other'}
-    valid_statuses = {'success', 'failed'}
-    
-    for transaction in transactions:
-        tx_id, tx_date_str, user_id, product_id, quantity, total_price, payment_type, status = transaction
-        
-        if user_id not in valid_user_ids:
-            log_error(conn_olap, 'transaction', 'fact_transactions', str(tx_id), 'orphan_user',
-                     f'Transaction {tx_id} references non-existent user {user_id}', 'error')
-            rejected_transactions.append(transaction)
-            continue
-        
-        if product_id not in valid_product_ids:
-            log_error(conn_olap, 'transaction', 'fact_transactions', str(tx_id), 'orphan_product',
-                     f'Transaction {tx_id} references non-existent product {product_id}', 'error')
-            rejected_transactions.append(transaction)
-            continue
-        
-        if quantity == 0:
-            log_error(conn_olap, 'transaction', 'fact_transactions', str(tx_id), 'qty_zero',
-                     f'Transaction {tx_id} has zero quantity', 'error')
-            rejected_transactions.append(transaction)
-            continue
-        elif quantity < 0:
-            log_error(conn_olap, 'transaction', 'fact_transactions', str(tx_id), 'qty_negative',
-                     f'Transaction {tx_id} has negative quantity {quantity}', 'error')
-            rejected_transactions.append(transaction)
-            continue
-        
-        payment_type_normalized = payment_type.lower() if payment_type else ''
-        if payment_type_normalized not in valid_payment_types:
-            log_error(conn_olap, 'transaction', 'fact_transactions', str(tx_id), 'invalid_payment_type',
-                     f'Transaction {tx_id} has invalid payment_type "{payment_type}"', 'error')
-            rejected_transactions.append(transaction)
-            continue
-        
-        status_normalized = status.lower() if status else ''
-        if status_normalized not in valid_statuses:
-            log_error(conn_olap, 'transaction', 'fact_transactions', str(tx_id), 'invalid_status',
-                     f'Transaction {tx_id} has invalid status "{status}"', 'error')
-            rejected_transactions.append(transaction)
-            continue
-        
-        try:
-            parsed_date = datetime.strptime(tx_date_str, '%Y-%m-%d').date()
-        except ValueError:
-            try:
-                if '/' in tx_date_str:
-                    parsed_date = datetime.strptime(tx_date_str, '%Y/%m/%d').date()
-                elif 'T' in tx_date_str:
-                    parsed_date = datetime.fromisoformat(tx_date_str.split('T')[0]).date()
-                elif tx_date_str.isdigit() and len(tx_date_str) == 8:
-                    parsed_date = datetime.strptime(tx_date_str, '%Y%m%d').date()
-                else:
-                    raise ValueError("Unparseable date")
-            except ValueError:
-                log_error(conn_olap, 'transaction', 'fact_transactions', str(tx_id), 'bad_date_format',
-                         f'Transaction {tx_id} has unparseable date "{tx_date_str}"', 'error')
-                rejected_transactions.append(transaction)
-                continue
-        
-        if product_id in product_prices:
-            expected_price = product_prices[product_id]
-            if abs(total_price / quantity - expected_price) > 0.01:
-                log_error(conn_olap, 'transaction', 'fact_transactions', str(tx_id), 'price_mismatch',
-                         f'Transaction {tx_id} price mismatch: expected {expected_price}, got {total_price/quantity}', 'warning')
-        
-        if tx_id in seen_tx_ids:
-            log_error(conn_olap, 'transaction', 'fact_transactions', str(tx_id), 'duplicate_tx_id',
-                     f'Duplicate transaction_id {tx_id}', 'warning')
-        else:
-            seen_tx_ids.add(tx_id)
-        
-        normalized_transaction = (
-            tx_id, parsed_date.strftime('%Y-%m-%d'), user_id, product_id, 
-            quantity, total_price, payment_type_normalized, status_normalized
-        )
-        valid_transactions.append(normalized_transaction)
-    
-    return valid_transactions, rejected_transactions
 
 def fetch_oltp_users(conn_oltp: sqlite3.Connection) -> list:
     return conn_oltp.execute('''
@@ -582,18 +441,19 @@ def main(today_str: str):
         
         print("Validating data quality...")
         
-        valid_users, rejected_users = validate_users(conn_olap, oltp_users)
+        validator = DataValidator(conn_olap, RUN_ID)
+        validation_results = validator.validate_all(oltp_users, oltp_products, oltp_transactions)
+        
+        valid_users = validation_results['users'].valid_records
+        valid_products = validation_results['products'].valid_records
+        valid_transactions = validation_results['transactions'].valid_records
+        
+        rejected_users = validation_results['users'].rejected_records
+        rejected_products = validation_results['products'].rejected_records
+        rejected_transactions = validation_results['transactions'].rejected_records
+        
         print(f"  Users: {len(valid_users)} valid, {len(rejected_users)} rejected")
-        
-        valid_products, rejected_products = validate_products(conn_olap, oltp_products)
         print(f"  Products: {len(valid_products)} valid, {len(rejected_products)} rejected")
-        
-        valid_user_ids = {user[0] for user in valid_users}
-        valid_product_ids = {product[0] for product in valid_products}
-        product_prices = {product[0]: product[3] for product in valid_products}
-        
-        valid_transactions, rejected_transactions = validate_transactions(
-            conn_olap, oltp_transactions, valid_user_ids, valid_product_ids, product_prices)
         print(f"  Transactions: {len(valid_transactions)} valid, {len(rejected_transactions)} rejected")
         print()
         
@@ -658,9 +518,25 @@ def main(today_str: str):
         print(f"  Current users: {current_users}")
         print(f"  Current products: {current_products}")
         
+        # Get actual error counts from database
+        actual_error_count = conn_olap.execute(
+            'SELECT COUNT(*) FROM etl_error_log WHERE run_id = ? AND severity = "error"', 
+            (RUN_ID,)
+        ).fetchone()[0]
+        
+        actual_warning_count = conn_olap.execute(
+            'SELECT COUNT(*) FROM etl_error_log WHERE run_id = ? AND severity = "warning"', 
+            (RUN_ID,)
+        ).fetchone()[0]
+        
         print(f"\n  Data Quality Summary:")
-        print(f"    Errors: {ERROR_COUNT}")
-        print(f"    Warnings: {WARNING_COUNT}")
+        print(f"    Errors: {actual_error_count}")
+        print(f"    Warnings: {actual_warning_count}")
+        
+        # Update global counters with actual values
+        ERROR_COUNT = actual_error_count
+        WARNING_COUNT = actual_warning_count
+        
         for metric_name, count in DQ_METRICS.items():
             if count > 0:
                 print(f"    {metric_name}: {count}")
