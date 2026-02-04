@@ -5,8 +5,6 @@ This repository contains a full ETL workflow starting from synthetic OLTP data g
 
 ![Screenshot](https://github.com/Santiago-Beltran/ecommerce-full-ETL-process/blob/main/docs/ETLPipelineDetailed.png)
 
-![Screenshot](https://github.com/Santiago-Beltran/ecommerce-full-ETL-process/blob/main/docs/ETLPipelineDetailed.png)
-
 ![Screenshot](https://github.com/Santiago-Beltran/ecommerce-full-ETL-process/blob/main/docs/OLTP.png)
 
 ![Screenshot](https://github.com/Santiago-Beltran/ecommerce-full-ETL-process/blob/main/docs/OLAP.png)
