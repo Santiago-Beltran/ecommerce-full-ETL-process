@@ -77,3 +77,4 @@ plan.odt
 # Office temp/lock files
 .~lock.*#
 
+*.txt

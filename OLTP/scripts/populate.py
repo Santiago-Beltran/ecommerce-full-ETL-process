@@ -174,6 +174,7 @@ def create_new_transactions(
     transaction_date: date,
     batch_size: int = 500,
     status_weights: list = None,
+    multi_product_chance: float = 0.2,  # 20% chance of multi-product transactions
 ):
     # use module-level `random` imported at the top of the file
     cursor = conn.cursor()
@@ -197,6 +198,11 @@ def create_new_transactions(
     updates = {}
 
     inserted = 0
+    
+    # Get the next transaction_id (max + 1, or 1 if no transactions exist)
+    cursor.execute("SELECT MAX(transaction_id) FROM transactions")
+    result = cursor.fetchone()
+    next_transaction_id = (result[0] or 0) + 1
 
     # prepare weighted product list by stock to favor available items
     product_pool = []
@@ -218,8 +224,22 @@ def create_new_transactions(
             raise ValueError(f"status_weights length must be {len(status_choices)}")
         weights = list(status_weights)
 
+    # Track current transaction context for multi-product transactions
+    current_transaction_context = None
+
     for _ in range(n):
-        user_id = random.choice(users)
+        # If we don't have a transaction context, or we're starting a new transaction
+        if current_transaction_context is None:
+            user_id = random.choice(users)
+            payment_type = random.choice(payment_types)
+            status = random.choices(status_choices, weights=weights)[0]
+            current_transaction_context = {
+                'transaction_id': next_transaction_id,
+                'user_id': user_id,
+                'payment_type': payment_type,
+                'status': status
+            }
+
         prod_id = random.choice(product_pool)
         prod = prod_map[prod_id]
 
@@ -231,22 +251,34 @@ def create_new_transactions(
         unit_price = prod["price"]
         total_price = round(unit_price * qty, 2)
         created_at = transaction_date
-        payment_type = random.choice(payment_types)
-        status = random.choices(status_choices, weights=weights)[0]
 
-        inserts.append((created_at, user_id, prod_id, qty, total_price, payment_type, status))
+        inserts.append((
+            current_transaction_context['transaction_id'],
+            created_at,
+            current_transaction_context['user_id'],
+            prod_id,
+            qty,
+            total_price,
+            current_transaction_context['payment_type'],
+            current_transaction_context['status']
+        ))
 
         # only decrement stock for successful transactions
-        if status == "success":
+        if current_transaction_context['status'] == "success":
             updates[prod_id] = updates.get(prod_id, 0) + qty
 
         inserted += 1
+
+        if random.random() > multi_product_chance:
+            # Start new transaction next iteration
+            next_transaction_id += 1
+            current_transaction_context = None
 
         if len(inserts) >= batch_size:
             # flush batch
             with conn:
                 cursor.executemany(
-                    "INSERT INTO transactions (date, user_id, product_id, quantity, price, payment_type, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO transactions (transaction_id, date, user_id, product_id, quantity, price, payment_type, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     inserts,
                 )
                 if updates:
@@ -261,7 +293,7 @@ def create_new_transactions(
     if inserts:
         with conn:
             cursor.executemany(
-                "INSERT INTO transactions (date, user_id, product_id, quantity, price, payment_type, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO transactions (transaction_id, date, user_id, product_id, quantity, price, payment_type, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 inserts,
             )
             if updates:
