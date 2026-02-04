@@ -1,0 +1,79 @@
+# Python bytecode and caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Tool/analysis caches
+.cache/
+.pytest_cache/
+.mypy_cache/
+pip-cache/
+
+# Databases (SQLite, etc.)
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite3-journal
+db/
+dbs/
+database/
+
+# Logs and runtime files
+*.log
+logs/
+*.pid
+
+# Secrets and credentials
+.env
+.env.*
+*.env
+secrets/
+secret/
+*.secret
+*.secrets
+credentials/
+*.key
+*.pem
+*.crt
+*.p12
+*.keystore
+
+# Editor/OS cruft
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+*.bak
+~*
+
+# Build outputs
+build/
+dist/
+coverage/
+.coverage
+htmlcov/
+
+# Node (if used later)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Project-specific ignores
+plan.odt
+ 
+# Office temp/lock files
+.~lock.*#
+
