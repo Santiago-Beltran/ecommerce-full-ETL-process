@@ -237,10 +237,21 @@ def create_new_transactions(
                 'transaction_id': next_transaction_id,
                 'user_id': user_id,
                 'payment_type': payment_type,
-                'status': status
+                'status': status,
+                'used_products': set()  # Track products already used in this transaction
             }
 
-        prod_id = random.choice(product_pool)
+        # Filter out products already used in this transaction
+        available_products = [pid for pid in product_pool 
+                            if pid not in current_transaction_context['used_products']]
+        
+        if not available_products:
+            # No more products available for this transaction, start a new one
+            next_transaction_id += 1
+            current_transaction_context = None
+            continue
+            
+        prod_id = random.choice(available_products)
         prod = prod_map[prod_id]
 
         available = prod["stock"] - updates.get(prod_id, 0)
@@ -262,6 +273,9 @@ def create_new_transactions(
             current_transaction_context['payment_type'],
             current_transaction_context['status']
         ))
+
+        # Mark this product as used in the current transaction
+        current_transaction_context['used_products'].add(prod_id)
 
         # only decrement stock for successful transactions
         if current_transaction_context['status'] == "success":
