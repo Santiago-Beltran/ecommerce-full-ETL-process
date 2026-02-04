@@ -1,11 +1,9 @@
 import sqlite3
 
-
 def main():
     conn = sqlite3.connect('ecommerce-OLAP.db')
     cursor = conn.cursor()
 
-    # dim_date (SCD0)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS dim_date (
         date_id INTEGER PRIMARY KEY,
@@ -18,7 +16,6 @@ def main():
     );
     ''')
 
-    # dim_user (SCD2)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS dim_user (
         user_sk INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +29,6 @@ def main():
     );
     ''')
 
-    # dim_product (SCD2)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS dim_product (
         product_sk INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,7 +42,6 @@ def main():
     );
     ''')
 
-    # fact_transactions (SCD0) - composite PK (transaction_id, product_sk)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS fact_transactions (
         transaction_id INTEGER,
@@ -65,7 +60,6 @@ def main():
     );
     ''')
 
-    # fact_stock_history
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS fact_stock_history (
         product_sk INTEGER,
@@ -79,7 +73,6 @@ def main():
 
     conn.commit()
     conn.close()
-
 
 if __name__ == '__main__':
     main()

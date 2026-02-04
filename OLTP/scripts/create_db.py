@@ -4,7 +4,6 @@ def main():
     conn = sqlite3.connect('ecommerce-OLTP.db')
     cursor = conn.cursor()
 
-    # Create 'transactions' table
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS transactions (
         transaction_id INTEGER,
@@ -20,7 +19,6 @@ def main():
     );
     ''')
 
-    # Create 'users' table
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
@@ -30,16 +28,18 @@ def main():
     );
     ''')
 
-    # Create 'products' table
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS products (
         product_id INTEGER PRIMARY KEY,
         name TEXT,
         category TEXT,
         price REAL,
-        stock INTEGER)
-                   ;
+        stock INTEGER
+    );
     ''')
 
     conn.commit()
     conn.close()
+
+if __name__ == '__main__':
+    main()
